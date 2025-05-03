@@ -7,20 +7,23 @@ export const implementation: plugin_interface.CustomGuest(*SinePlugin) = .{
         .author = "Julia",
         .version = "0.0.0",
 
-        .event_inputs = 0,
         .audio_inputs = 0,
-        .event_outputs = 0,
-        .audio_outputs = 0,
+        .audio_input_names = null,
+
+        .audio_outputs = 1,
+        .audio_output_names = null,
+
+        .parameters = 0,
+        .parameter_names = null,
     },
     .vt = .{
         .load = &SinePlugin.load,
         .unload = &SinePlugin.unload,
         .changeFormat = &SinePlugin.changeFormat,
 
-        .init = &SinePlugin.init,
-        .deinit = &SinePlugin.deinit,
-        .dispatchEvent = &SinePlugin.dispatchEvent,
-        .renderVoice = &SinePlugin.renderVoice,
+        .init = &SineInstance.init,
+        .deinit = &SineInstance.deinit,
+        .render = &SineInstance.render,
     },
 };
 
@@ -36,16 +39,28 @@ const SinePlugin = struct {
     fn changeFormat() callconv(.x86_64_sysv) void {}
 };
 
+const Voice = struct {
+    phase: f32,
+    freq: f32,
+    is_on: bool,
+};
+
 const SineInstance = struct {
-    fn init() callconv(.x86_64_sysv) ?*SinePlugin {
-        return std.heap.c_allocator.create(SinePlugin) catch null;
+    voices: u16 = 0,
+
+    fn init(input_buffer: ?[*]con) callconv(.x86_64_sysv) ?*SineInstance {
+        const sine: *SineInstance = std.heap.c_allocator.create(SineInstance) catch
+            return null;
+
+        sine = SineInstance{};
     }
 
-    fn deinit(sine: *SinePlugin) callconv(.x86_64_sysv) void {
+    fn deinit(sine: *SineInstance) callconv(.x86_64_sysv) void {
         std.heap.c_allocator.destroy(sine);
     }
 
-    fn process(sine: *SinePlugin, event_in: [*]const plugin_interface.EventGroup, [*]const plugin_interface.AudioGroup, event_out: [*]plugin_interface.EventGroup, audio_out: [*]plugin_interface.AudioGroup,) callconv(.x86_64_sysv) void {
-
-    }
-}
+    fn render(
+        sine: *SineInstance,
+        events: [*]const plugin_interface.Event,
+    ) callconv(.x86_64_sysv) void {}
+};
