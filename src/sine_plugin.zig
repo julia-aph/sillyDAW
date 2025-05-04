@@ -28,10 +28,10 @@ export const implementation: plugin_interface.CustomGuest(*SinePlugin) = .{
 };
 
 const SinePlugin = struct {
-    var format: *const plugin_interface.Format;
+    var global_format: *const plugin_interface.Format = undefined;
 
     fn load(format: *const plugin_interface.Format) callconv(.x86_64_sysv) void {
-        SinePlugin.format = format;
+        SinePlugin.global_format = format;
     }
 
     fn unload() callconv(.x86_64_sysv) void {}
@@ -46,13 +46,17 @@ const Voice = struct {
 };
 
 const SineInstance = struct {
-    voices: u16 = 0,
+    output: [*]f32,
+    voices: u16,
 
-    fn init(input_buffer: ?[*]con) callconv(.x86_64_sysv) ?*SineInstance {
+    fn init(
+        _: ?[*]const f32,
+        output_buffer: ?[*]f32,
+        _: ?[*]const f32,
+    ) callconv(.x86_64_sysv) ?*anyopaque {
         const sine: *SineInstance = std.heap.c_allocator.create(SineInstance) catch
             return null;
-
-        sine = SineInstance{};
+        sine = SineInstance{ .output = output_buffer.?, .voices = 0 };
     }
 
     fn deinit(sine: *SineInstance) callconv(.x86_64_sysv) void {
@@ -62,5 +66,7 @@ const SineInstance = struct {
     fn render(
         sine: *SineInstance,
         events: [*]const plugin_interface.Event,
-    ) callconv(.x86_64_sysv) void {}
+    ) callconv(.x86_64_sysv) void {
+        x;
+    }
 };
