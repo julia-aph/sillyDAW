@@ -22,32 +22,35 @@ pub const GuestMetadata = extern struct {
     author: [*:0]const u8,
     version: [*:0]const u8,
 
-    audio_inputs: usize,
-    audio_input_names: ?[*]?[*:0]const u8,
+    size: usize,
+    state_size: usize,
 
-    audio_outputs: usize,
-    audio_output_names: ?[*]?[*:0]const u8,
-
-    parameters: usize,
-    parameter_names: ?[*]?[*:0]const u8,
+    inputs: u8,
+    outputs: u8,
+    parameters: u8,
+    io_names: ?[*][*:0]const u8,
 };
 
-pub fn GuestVTable(P: *type) type {
-    return extern struct {
-        load: *const fn (format: *const Format) callconv(.x86_64_sysv) void,
-        unload: *const fn () callconv(.x86_64_sysv) void,
-        changeFormat: *const fn () callconv(.x86_64_sysv) void,
+pub const GuestStaticVTable = extern struct {
+    load: *const fn (format: *const Format) callconv(.x86_64_sysv) void,
+    unload: *const fn () callconv(.x86_64_sysv) void,
+    changeFormat: *const fn () callconv(.x86_64_sysv) void,
+};
 
+pub fn GuestInstanceVTable(T: type) type {
+    return extern struct {
         init: *const fn (
+            this: *T,
             input_buffer: ?[*]const f32,
             output_buffer: ?[*]f32,
             parameter_buffer: ?[*]const f32,
-        ) callconv(.x86_64_sysv) ?*anyopaque,
-        deinit: *const fn (this: P) callconv(.x86_64_sysv) void,
-        render: *const fn (
-            this: P,
-            events: [*]const Event,
         ) callconv(.x86_64_sysv) void,
+        deinit: *const fn (this: *T) callconv(.x86_64_sysv) void,
+
+        setState: *const fn (this: *T, state: [*]u8) callconv(.x86_64_sysv) void,
+        getState: *const fn (this: *T, state: [*]u8) callconv(.x86_64_sysv) void,
+
+        render: *const fn (this: *T, events: [*]const Event) callconv(.x86_64_sysv) void,
     };
 }
 
