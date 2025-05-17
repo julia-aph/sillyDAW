@@ -12,12 +12,6 @@ const PluginWrapper = struct {
 };
 
 pub fn main() void {
-    var win: sdl_input_test.SdlWindow = undefined;
-    if (!sdl_input_test.SdlWindow.init(&win)) {
-        std.debug.print("no window!!!\n", .{});
-        return;
-    }
-
     if (!audio.Driver.globalInit()) {
         std.debug.print("audio.Driver.globalInit failed\n", .{});
         return;
