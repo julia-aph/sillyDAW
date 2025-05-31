@@ -1,87 +1,85 @@
 const std = @import("std");
-const plugin_interface = @import("plugin_interface.zig");
+const audio = @import("audio.zig");
 
-export const implementation: plugin_interface.CustomGuest(SineStatic) = .{
-    .meta = .{
-        .name = "Sine",
-        .author = "Julia",
-        .version = "0.0.0",
+export const plugin_meta: audio.PluginMetadata = .{
+    .name = "Sine demo",
+    .author = "Julia",
+    .version = .{ .major = 0, .minor = 0, .patch = 0 },
+};
 
-        .inputs = 0,
-        .outputs = 1,
-        .params = 0,
-        .io_names = &.{"Output"},
-        .param_names = null,
+export const plugin_vt: audio.CustomPluginVTable(FumoSine) = .{
+    .load = &load,
+    .unload = &unload,
 
-        .serialized_size = 0,
-    },
-    .vt = .{
-        .load = &SineStatic.load,
-        .unload = &SineStatic.unload,
+    .init = &FumoSine.init,
+    .deinit = &FumoSine.deinit,
+    .process = &FumoSine.process,
 
-        .init = &SineInstance.init,
-        .deinit = &SineInstance.deinit,
+    .querySerializedSize = &FumoSine.querySerializedSize,
+    .serialize = &FumoSine.serialize,
+    .deserialize = &FumoSine.deserialize,
+};
 
-        .serialize = &SineInstance.serialize,
-        .deserialize = &SineInstance.deserialize,
-
-        .render = &SineInstance.render,
+export const audio_outputs: audio.AudioGroup = .{
+    .len = 1,
+    .names = null,
+    .ports = &.{
+        .{ .sample_type = .{ .f32 = true }, .max_channels = 1 },
     },
 };
 
-const SineStatic = struct {
-    var global_format: *const plugin_interface.Format = undefined;
-
-    fn load(format: *const plugin_interface.Format) callconv(.x86_64_sysv) void {
-        SineStatic.global_format = format;
-    }
-
-    fn unload() callconv(.x86_64_sysv) void {}
+export const param_outputs: audio.ParamGroup = .{
+    .len = 1,
+    .names = &.{"Test param"},
+    .ports = &.{
+        .{ .sample_type = .{ .f32 = true }, .range = .{ .f32 = .{ 0.0, 1.0 } } },
+    },
 };
 
-const SineInstance = struct {
-    output_buffer: [*]f32,
+var global_spec: audio.BufferSpec = undefined;
 
-    voices: std.HashMap(@TypeOf(plugin_interface.Event.channel), SineVoice),
+pub fn load(spec: audio.BufferSpec) callconv(audio.cc) usize {
+    global_spec = spec;
+    return @sizeOf(FumoSine);
+}
 
-    fn init(
-        _: ?[*]const f32,
-        _output_buffer: ?[*]f32,
-        _: ?[*]const f32,
-    ) callconv(.x86_64_sysv) ?*anyopaque {
-        const sine: *SineInstance = std.heap.c_allocator.create(SineInstance) catch
-            return null;
+pub fn unload() callconv(audio.cc) void {}
 
-        sine = SineInstance{
-            .output = _output_buffer.?,
-        };
+const FumoSine = struct {
+    time: f32,
 
-        sine.event_tracker.init(std.heap.c_allocator);
-
-        return sine;
+    pub fn init(sine: *FumoSine) callconv(audio.cc) void {
+        sine.time = 0;
     }
 
-    fn deinit(sine: *SineInstance) callconv(.x86_64_sysv) void {
-        std.heap.c_allocator.destroy(sine);
+    pub fn deinit(sine: *FumoSine) callconv(audio.cc) void {
+        _ = sine;
     }
 
-    fn render(
-        sine: *SineInstance,
-        events: [*]const plugin_interface.Event,
-        events_count: u16,
-    ) callconv(.x86_64_sysv) void {
-        for (events[0..events_count]) |event| switch (event.type) {
-            .on => {
-                sine.event_tracker.ensureTotalCapacity(event.channel);
-                sine.event_tracker.items[event.channel] = true;
+    pub fn process(sine: *FumoSine, buffers: *audio.Buffers) callconv(audio.cc) void {
+        const out: [*]f32 = buffers.audio_outputs.?[0];
+        // const param: [*]f32 = buffers.param_inputs.?[0];
 
-                sine.voices.append(SineVoice{});
-            },
+        var frame: u32 = 0;
+        while (frame < global_spec.buffer_length) : (frame += 1) {
+            const amp: f32 = @sin(sine.time * 440.0 * std.math.pi);
+            sine.time += 1.0 / @as(f32, @floatFromInt(global_spec.frame_rate));
+
+            out[frame] = amp;
         }
     }
-};
 
-const SineVoice = struct {
-    is_on: bool,
-    phase: f32,
+    pub fn querySerializedSize(_: *FumoSine) callconv(audio.cc) u32 {
+        return @sizeOf(FumoSine);
+    }
+
+    pub fn serialize(sine: *FumoSine, buffer: [*]u8) callconv(audio.cc) void {
+        const view: *FumoSine = @alignCast(@ptrCast(buffer));
+        view.* = sine.*;
+    }
+
+    pub fn deserialize(sine: *FumoSine, buffer: [*]const u8, _: u32) callconv(audio.cc) void {
+        const view: *const FumoSine = @alignCast(@ptrCast(buffer));
+        sine.* = view.*;
+    }
 };

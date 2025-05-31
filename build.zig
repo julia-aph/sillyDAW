@@ -7,7 +7,7 @@ pub fn build(b: *std.Build) void {
         .target = b.graph.host,
     });
 
-    exe.linkSystemLibrary2("SDL2", .{
+    exe.linkSystemLibrary2("SDL3", .{
         .use_pkg_config = .force,
     });
     exe.linkLibC();
