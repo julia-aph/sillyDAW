@@ -1,52 +1,58 @@
-const juliapi = @import("juliapi.zig");
+const std = @import("std");
+const jpi = @import("juliapi.zig");
 
-export const meta: juliapi.Metadata = .{
-    .outputs_len = output_ports.len,
-    .outputs = &output_ports,
+var host: *const jpi.Host = undefined;
 
-    .parameters_len = parameters.len,
-    .parameters = &parameters,
-};
+const Ports = enum(u32) { gain, events, output };
 
-const output_ports = .{
-    .{
-        .name = "Output",
-        .format = .f32,
-    },
-};
-
-const parameters = .{
-    .{ .name = "Gain", .format = .f32, .range = .{ .f32 = .{ 0.0, 1.0 } } },
-};
-
-export const plugin: juliapi.MakePlugin(Osc) = .{
-    .init = &Osc.init,
-    .process = &Osc.process,
+const OscVoice = struct {
+    time: f32 = 0,
+    freq: f32,
 };
 
 const Osc = struct {
-    var host: *const juliapi.Host = undefined;
-
+    voice_map: jpi.VoiceMap(OscVoice) = undefined,
     time: f32 = 0,
+    sample_rate: u32,
 
-    fn load(host: *const juliapi.Host) callconv(juliapi.cc) void {
-        host = host;
+    fn load(vt: *const jpi.Host) callconv(jpi.cc) void {
+        host = vt;
     }
 
-    fn init(saw: *Osc, sample_rate: u32) callconv(juliapi.cc) void {
-        saw.* = .{};
+    fn getSize(_: u32) callconv(jpi.cc) usize {
+        return @sizeOf(Osc);
     }
 
-    fn process(
-        saw: *Osc,
-        _: *const juliapi.Streams,
-        outputs: *const juliapi.Streams,
-    ) callconv(juliapi.cc) void {
-        const output: [*]f32 = outputs.buffers[0].f32;
+    fn init(osc: *Osc, sample_rate: u32) callconv(jpi.cc) bool {
+        osc.* = .{ .sample_rate = sample_rate };
 
-        for (output[0..global_timing.buffer_len]) |*sample| {
-            sample.* = (@mod(saw.time * 440.0, 2) - 1) * 0.1;
-            saw.time += 1.0 / @as(f32, @floatFromInt(global_timing.frame_rate));
+        osc.voice_map.init(host.recommendPolyphony(), host);
+    }
+
+    fn process(osc: *Osc, ports: [*]*anyopaque, samples: u16) callconv(jpi.cc) void {
+        const gain: [*]f32 = @ptrCast(@alignCast(ports[Ports.gain]));
+        const events: *jpi.Events = @ptrCast(@alignCast(ports[Ports.events]));
+        const output: [*]f32 = @ptrCast(@alignCast(ports[Ports.output]));
+
+        for (events.array()[0..events.len]) |event| {
+            if (osc.voice_map.)
+
+            if (osc.voice_map.find(event.channel)) |*voice| {
+                
+            } else if (osc.voice_map.add(event.channel)) |*voice| {
+
+            }
+        }
+
+        var i: usize = 0;
+        while (i < samples) : (i += 1) {
+            output[i] = (@mod(osc.time * 440.0, 2) - 1) * gain[i];
+            osc.time += 1.0 / @as(f32, @floatFromInt(osc.sample_rate));
         }
     }
+};
+
+export const plugin: jpi.MakePlugin(Osc) = .{
+    .init = &Osc.init,
+    .process = &Osc.process,
 };

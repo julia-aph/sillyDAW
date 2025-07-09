@@ -2,113 +2,58 @@ const std = @import("std");
 
 pub const cc: std.builtin.CallingConvention = std.builtin.CallingConvention.SysV;
 
-pub const SemVer = extern struct { major: u8, minor: u8, patch: u8, label: u8 = 0 };
-pub const module_version = .{ .major = 0, .minor = 0, .patch = 0 };
-
-pub const Metadata = extern struct {
-    name: [*:0]u8,
-    author: [*:0]u8,
-    version: SemVer,
-    module_version: SemVer = module_version,
-    size: u32,
-
-    inputs_len: u16 = 0,
-    outputs_len: u16 = 0,
-    inputs: ?[*]Port = null,
-    outputs: ?[*]Port = null,
-};
-
 pub const Plugin = MakePlugin(anyopaque);
-pub const Serializable = MakeSerializable(anyopaque);
 
-pub fn MakePlugin(T: type) type {
-    return extern struct {
-        load: ?*const fn (host_vt: *anyopaque, timing: BufferTiming) callconv(cc) void,
-        unload: ?*const fn () callconv(cc) void,
-        init: ?*const fn (this: *T) void,
-        deinit: ?*const fn (this: *T) void,
-        process: *const fn (
-            this: *T,
-            inputs: *const Streams,
-            outputs: *const Streams,
-        ) callconv(cc) void,
-    };
-}
-
-pub fn MakeSerializable(T: type) type {
-    return extern struct {
-        getSize: *const fn (this: *T) callconv(cc) usize,
-        serialize: *const fn (this: *T, buffer: [*]u8) callconv(cc) void,
-        deserialize: *const fn (this: *T, buffer: [*]const u8, size: usize) callconv(cc) void,
-    };
-}
-
-pub fn MakeParametric(T: type) type {
-    return extern struct {};
-}
-
-// TODO: Connection events
+// hostvt: file access
 // TODO: Dynamic ports
 // TODO: Host VTable for allocations and ports and connections
 
-pub const Port = extern struct {
-    name: [*:0]u8 = null,
-    format: Format,
-    channels: u8,
-    max_channels: u8 = 0,
+pub const Host = extern struct {
+    recommendPolyphony: *const fn () callconv(cc) u32,
 };
 
-pub const ParameterSignalType = enum(u8) {
-    buffer,
-    event_block_granularity,
-    event_sample_granularity,
+pub fn MakePlugin(T: type) type {
+    return extern struct {
+        load: ?*const fn (host: *const Host) callconv(cc) void,
+        unload: ?*const fn () callconv(cc) void,
+        getSize: *const fn (sample_rate: u32) callconv(cc) usize,
+
+        init: ?*const fn (this: *T, sample_rate: u32) callconv(cc) void,
+        deinit: ?*const fn (this: *T) callconv(cc) void,
+
+        process: *const fn (this: *T, ports: [*]*anyopaque, samples: u32) callconv(cc) void,
+    };
+}
+
+pub const EventType = enum(u16) { on, off, slide };
+
+pub const Events = extern struct {
+    len: u32 align(@alignOf(Event)),
+    pub inline fn array(events: *Events) [*]Event {
+        return @ptrCast(@as([*]Events, @ptrCast(events)) + 1);
+    }
 };
 
-pub const Parameter = extern struct {
-    name: [*:0]u8,
-    format: Format,
-    range: Range,
-    signal: ParameterSignalType = .buffer,
+pub const Event = extern struct {
+    frequency: f32,
+    channel: u32,
+    sample_index: u16,
+    type: EventType,
 };
 
-pub const Format = enum(u8) {
-    i8,
-    i16,
-    i32,
-    f32,
-    i64,
-    f64,
-};
+pub fn VoiceMap(T: type) type {
+    return extern struct {
+        const Bucket = extern struct { channel: u32, voice: T };
 
-pub const Range = extern union {
-    i8: [2]i8,
-    i16: [2]i16,
-    i32: [2]i32,
-    f32: [2]f32,
-    i64: [2]i64,
-    f64: [2]f64,
-};
+        capacity: u32,
+        used: u32 = 0,
+        buckets: [*]Bucket,
+        backup_buckets: ?[*]Bucket = null,
 
-pub const BufferTiming = extern struct {
-    frame_rate: u32,
-    buffer_len: u16,
-};
-
-pub const Streams = extern struct {
-    buffers: [*]BufferUnion,
-    info: [*]const StreamInfo,
-};
-
-pub const BufferUnion = extern union {
-    i8: [*]i8,
-    i16: [*]i16,
-    i32: [*]i32,
-    f32: [*]f32,
-    i64: [*]i64,
-    f64: [*]f64,
-};
-
-pub const StreamInfo = extern struct {
-    format: Format,
-    channels: u8,
-};
+        pub fn init(map: *@This(), capacity: u32, host: *const Host) void {
+            map.* = .{
+                .capacity = capacity,
+            };
+        }
+    };
+}

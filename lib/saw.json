@@ -1,0 +1,40 @@
+{
+    "name": "Saw",
+    "author": "Julia",
+    "version": "0.0.0",
+    "juliapi-version": "0.0.0",
+    
+    "binary": {
+        "target": "x86_64-linux", 
+        "path": "saw.so"
+    },
+    
+    "input": {
+        "control": [
+            {
+                "sym": "gain",
+                "format": "f32",
+
+                "range": [ 0.0, 2.0 ],
+                "default": 1.0,
+
+                "taper": "dB"
+            },
+            { 
+                "format": "events" 
+            }
+        ]
+    },
+
+    "output": {
+        "audio": [ 
+            {
+                "format": "f32"
+            }
+        ]
+    }
+}
+
+{
+    "gain": "Gain"
+}
