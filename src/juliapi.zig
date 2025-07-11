@@ -9,7 +9,7 @@ pub const Plugin = MakePlugin(anyopaque);
 
 pub const Host = extern struct {
     alloc: *const fn (size: usize) callconv(cc) ?*align(16) anyopaque,
-    free: *const fn (ptr: *anyopaque) callconv(cc) void,
+    free: *const fn (ptr: *align(16) anyopaque) callconv(cc) void,
     outOfMemory: *const fn () callconv(cc) void,
     recommendPolyphony: *const fn () callconv(cc) u32,
 };
@@ -46,6 +46,7 @@ pub const Event = extern struct {
 pub fn VoiceMap(T: type) type {
     return extern struct {
         const Bucket = extern struct { channel: u32, voice: T };
+        const load_factor = 2;
 
         capacity: u32,
         used: u32 = 0,
@@ -59,6 +60,36 @@ pub fn VoiceMap(T: type) type {
             };
 
             std.mem.zeroInit(map.buckets[0..capacity]);
+
+            return true;
         }
+
+        pub fn deinit(map: *@This(), host: *const Host) void {
+            host.free(map);
+        }
+
+        pub fn add(map: *@This(), channel: u32, host: *const Host) ?*T {
+            if (map.used == map.capacity) {
+                host.();
+                return null;
+            } 
+
+            map.used += 1;
+
+            var index: u32 = channel % map.capacity;
+            var probe: u32 = 0;
+            while (map.buckets[index + probe].channel != 0) {
+                index = (index + probe) % map.capacity;
+
+                probe += 1;
+                if (probe == map.capacity)
+                    return null;
+            }
+
+            map.buckets[index + probe].channel = channel;
+            return &map.buckets[index + probe].voice;
+        }
+
+        pub fn find(map: *@This(), channel: u32)
     };
 }
