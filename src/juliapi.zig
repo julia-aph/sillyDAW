@@ -4,11 +4,13 @@ pub const cc: std.builtin.CallingConvention = std.builtin.CallingConvention.SysV
 
 pub const Plugin = MakePlugin(anyopaque);
 
-// hostvt: file access
+// TODO: File access
 // TODO: Dynamic ports
-// TODO: Host VTable for allocations and ports and connections
 
 pub const Host = extern struct {
+    alloc: *const fn (size: usize) callconv(cc) ?*align(16) anyopaque,
+    free: *const fn (ptr: *anyopaque) callconv(cc) void,
+    outOfMemory: *const fn () callconv(cc) void,
     recommendPolyphony: *const fn () callconv(cc) u32,
 };
 
@@ -50,10 +52,13 @@ pub fn VoiceMap(T: type) type {
         buckets: [*]Bucket,
         backup_buckets: ?[*]Bucket = null,
 
-        pub fn init(map: *@This(), capacity: u32, host: *const Host) void {
+        pub fn init(map: *@This(), capacity: u32, host: *const Host) bool {
             map.* = .{
                 .capacity = capacity,
+                .buckets = @ptrCast(host.alloc(capacity * @sizeOf(Bucket)) orelse return false),
             };
+
+            std.mem.zeroInit(map.buckets[0..capacity]);
         }
     };
 }
